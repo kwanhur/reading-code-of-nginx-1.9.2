@@ -759,33 +759,34 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
     ngx_pool_cleanup_t            *cln;
     ngx_http_image_filter_conf_t  *conf;
 
-    src = ngx_http_image_source(r, ctx);
+    src = ngx_http_image_source(r, ctx); //根据格式类型返回img对象
 
     if (src == NULL) {
         return NULL;
     }
 
-    sx = gdImageSX(src);
-    sy = gdImageSY(src);
+    sx = gdImageSX(src); //原图的宽度
+    sy = gdImageSY(src); //高度
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_image_filter_module);
 
+    // no rotate、原图宽高比设置的要小，直接返回
     if (!ctx->force
         && ctx->angle == 0
         && (ngx_uint_t) sx <= ctx->max_width
         && (ngx_uint_t) sy <= ctx->max_height)
     {
         gdImageDestroy(src);
-        return ngx_http_image_asis(r, ctx);
+        return ngx_http_image_asis(r, ctx); //拷贝原图到buffer，然后输出图片内容
     }
 
-    colors = gdImageColorsTotal(src);
+    colors = gdImageColorsTotal(src);//获取原图支持的颜色数
 
-    if (colors && conf->transparency) {
-        transparent = gdImageGetTransparent(src);
+    if (colors && conf->transparency) { //支持透明度
+        transparent = gdImageGetTransparent(src); //原图透明度大小
 
         if (transparent != -1) {
-            palette = colors;
+            palette = colors; //色数
             red = gdImageRed(src, transparent);
             green = gdImageGreen(src, transparent);
             blue = gdImageBlue(src, transparent);
@@ -802,14 +803,17 @@ ngx_http_image_resize(ngx_http_request_t *r, ngx_http_image_filter_ctx_t *ctx)
 
 transparent:
 
-    gdImageColorTransparent(src, -1);
+    gdImageColorTransparent(src, -1); //JPEG图片不支持透明度，设置了也无影响
 
-    dx = sx;
-    dy = sy;
+    dx = sx; //目标宽度
+    dy = sy; //目标高度
 
+    /*优先等级：resize > rotate > crop*/
     if (conf->filter == NGX_HTTP_IMAGE_RESIZE) {
 
+        // max_width max_height 传参进行resize的宽高
         if ((ngx_uint_t) dx > ctx->max_width) {
+            //原图宽度比设置的要大，高度按比例换算，趋于0则设置为原图高度（宽度换算同理）
             dy = dy * ctx->max_width / dx;
             dy = dy ? dy : 1;
             dx = ctx->max_width;
@@ -850,7 +854,7 @@ transparent:
     }
 
     if (resize) {
-        dst = ngx_http_image_new(r, dx, dy, palette);
+        dst = ngx_http_image_new(r, dx, dy, palette); //按新的宽高、色数新建一张图
         if (dst == NULL) {
             gdImageDestroy(src);
             return NULL;
@@ -1104,7 +1108,7 @@ ngx_http_image_out(ngx_http_request_t *r, ngx_uint_t type, gdImagePtr img,
         if (jq <= 0) {
             return NULL;
         }
-
+        // 设置输出质量，默认值75
         out = gdImageJpegPtr(img, size, jq);
         failed = "gdImageJpegPtr() failed";
         break;
